@@ -40,3 +40,4 @@ Returns `{"status": "ok", "model": "Qwen/Qwen2.5-1.5B-Instruct"}`
 
 ## Built for
 IIT Bombay GeoAI Hackathon 2026 — companion API for the [EssentialRoute PWA](https://essentialroute.netlify.app).
+"# essentialroute-api" 
