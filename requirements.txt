@@ -2,6 +2,3 @@ fastapi
 uvicorn[standard]
 httpx
 pydantic
-transformers>=4.45.0
-torch
-accelerate
