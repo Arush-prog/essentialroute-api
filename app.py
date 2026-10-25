@@ -138,8 +138,19 @@ async def ask(req: AskRequest):
             r = await client.post(HF_API_URL, json=payload, headers=headers)
             r.raise_for_status()
             answer = r.json()["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        raise HTTPException(502, f"Inference API error: {e}")
+    except Exception:
+        severe   = [z["name"] for z in zones if z["severity"] == "severe"]
+        moderate = [z["name"] for z in zones if z["severity"] == "moderate"]
+        if severe:
+            answer = (
+                f"Current flood alert: {', '.join(severe)} {'is' if len(severe)==1 else 'are'} severely flooded -- avoid these routes now. "
+                + (f"Exercise caution near {', '.join(moderate)}. " if moderate else "")
+                + "Use EssentialRoute's map to find an alternate path."
+            )
+        elif moderate:
+            answer = f"Moderate waterlogging detected at {', '.join(moderate)}. Proceed with caution and allow extra travel time."
+        else:
+            answer = "All 11 monitored Mumbai flood hotspots are currently clear. Roads appear safe -- drive as normal but stay alert during heavy rain."
 
     return AskResponse(
         answer=answer,
