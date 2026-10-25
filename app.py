@@ -7,6 +7,7 @@ GET  /health
 """
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 import httpx
@@ -14,6 +15,13 @@ import os
 from datetime import datetime, timezone
 
 app = FastAPI(title="EssentialRoute GeoAI Assistant")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 MODEL_ID = "Qwen/Qwen2.5-1.5B-Instruct"
@@ -85,66 +93,4 @@ def flood_summary(zones: list[dict]) -> str:
     if not lines: lines.append("All 11 monitored zones are currently clear.")
     return "\n".join(lines)
 
-# ---------------------------------------------------------------------------
-# API
-# ---------------------------------------------------------------------------
-class AskRequest(BaseModel):
-    question: str
-    context: Optional[str] = None
-
-class AskResponse(BaseModel):
-    answer: str
-    flood_zones: list[dict]
-    model: str
-    timestamp: str
-
-@app.get("/health")
-async def health():
-    return {"status": "ok", "model": MODEL_ID}
-
-@app.post("/ask", response_model=AskResponse)
-async def ask(req: AskRequest):
-    if not req.question.strip():
-        raise HTTPException(400, "question is required")
-
-    zones = await fetch_rain()
-    summary = flood_summary(zones) if zones else "Live rain data unavailable — advise caution on all low-lying routes."
-
-    system_prompt = (
-        f"You are EssentialRoute, a flood-aware navigation assistant for Mumbai.\n"
-        f"You help commuters decide the safest route using real-time flood data.\n\n"
-        f"Current flood status ({datetime.now(timezone.utc).strftime('%d %b %Y %H:%M UTC')}):\n"
-        f"{summary}\n\n"
-        f"Give a direct, practical answer in 3-5 sentences. Name specific flooded locations "
-        f"if relevant to the user's route. Suggest alternatives when a junction is flooded. "
-        f"Do not invent flood data beyond what is listed above."
-    )
-
-    headers = {"Content-Type": "application/json"}
-    if HF_TOKEN:
-        headers["Authorization"] = f"Bearer {HF_TOKEN}"
-
-    payload = {
-        "model": MODEL_ID,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": req.question},
-        ],
-        "max_tokens": 256,
-        "temperature": 0.3,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.post(HF_API_URL, json=payload, headers=headers)
-            r.raise_for_status()
-            answer = r.json()["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        raise HTTPException(502, f"Inference API error: {e}")
-
-    return AskResponse(
-        answer=answer,
-        flood_zones=zones,
-        model=MODEL_ID,
-        timestamp=datetime.now(timezone.utc).isoformat(),
-    )
+# -------------------------------------------------------------------
